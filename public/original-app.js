@@ -243,7 +243,37 @@ function txExcel(){
  const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='LiteShipping_Transaction_Report_'+new Date().toISOString().slice(0,10)+'.xls';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-async function arch(){CUR=arch;const{data}=await sb.from('dcr_records').select('*').order('date_covered',{ascending:false});window.A=data;out(`<h3>DCR History</h3>Search DCR No. / month (YYYY-MM) / year<input id=sq oninput=ar()><button onclick=csv('dcr')>Export CSV</button><div id=al></div>`);ar()}
-function ar(){const q=sq.value.toLowerCase();al.innerHTML=`<table><tr><th>DCR No.<th>Date<th>Beginning<th>Collection<th>Deposit<th>Ending<th>PDC at closing<th>Status<th></tr>`+A.filter(x=>!q||(x.dcr_no+x.date_covered).toLowerCase().includes(q)).map(x=>`<tr><td>${x.dcr_no}<td>${x.date_covered}<td>${P(x.beginning_balance)}<td>${x.total_collection==null?'—':P(x.total_collection)}<td>${x.total_deposit==null?'—':P(x.total_deposit)}<td>${x.ending_balance==null?'—':P(x.ending_balance)}<td>${x.pdc_balance_at_closing==null?'—':P(x.pdc_balance_at_closing)}<td>${x.status}<td><button onclick="edit('${x.id}')">Open</button>${ROLE=='admin'?`<button class=dl onclick="delDcr('${x.id}')">Delete</button>`:''}</tr>`).join('')+'</table>'}
+async function arch(){CUR=arch;const{data}=await sb.from('dcr_records').select('*').order('date_covered',{ascending:false});window.A=data;out(`<h3>DCR History / Reports</h3><p>Search DCR No. / month (YYYY-MM) / year</p><input id=sq oninput=ar placeholder="Search DCR number or date"><button onclick="exportDcrHistoryExcel()">Export All DCR History (Excel)</button><div id=al></div>`);ar()}
+function ar(){const q=($('#sq')?.value||'').toLowerCase();const rows=A.filter(x=>!q||(x.dcr_no+x.date_covered).toLowerCase().includes(q));al.innerHTML=`<table><tr><th>DCR No.<th>Date<th>Beginning<th>Collection<th>Deposit<th>Ending<th>PDC at closing<th>Status<th>Reports</tr>`+rows.map(x=>`<tr><td>${ES(x.dcr_no)}<td>${ES(x.date_covered)}<td>${P(x.beginning_balance)}<td>${x.total_collection==null?'—':P(x.total_collection)}<td>${x.total_deposit==null?'—':P(x.total_deposit)}<td>${x.ending_balance==null?'—':P(x.ending_balance)}<td>${x.pdc_balance_at_closing==null?'—':P(x.pdc_balance_at_closing)}<td>${ES(x.status)}<td><button onclick="edit('${x.id}')">Open</button><button onclick="exportDcrExcel('${x.id}')">Export Excel</button>${ROLE=='admin'?`<button class=dl onclick="delDcr('${x.id}')">Delete</button>`:''}</tr>`).join('')+'</table>'}
+function dcrXlsDownload(filename,sheets){
+ const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ const cell=v=>'<Cell><Data ss:Type="'+(typeof v==='number'&&Number.isFinite(v)?'Number':'String')+'">'+esc(v instanceof Date?v.toISOString():v)+'</Data></Cell>';
+ const xmlSheets=sheets.map(sh=>'<Worksheet ss:Name="'+esc(sh.name.slice(0,31))+'"><Table>'+sh.rows.map(row=>'<Row>'+row.map(cell).join('')+'</Row>').join('')+'</Table></Worksheet>').join('');
+ const xml='<?xml version="1.0"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Default" ss:Name="Normal"><Font ss:FontName="Arial" ss:Size="10"/></Style><Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#00145F" ss:Pattern="Solid"/></Style></Styles>'+xmlSheets+'</Workbook>';
+ const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+}
+function dcrSheetRows(title,headers,records,keys){return [[title],headers,...records.map(r=>keys.map(k=>r[k]??''))]}
+function exportDcrExcel(id){
+ const d=T('dcr_records').find(x=>x.id===id);if(!d)return alert('DCR not found.');
+ const pick=k=>T(k).filter(x=>x.dcr_id===id);
+ const summary=[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — DCR SUMMARY'],['DCR No.',d.dcr_no],['Date Covered',d.date_covered],['Status',d.status],['Department',d.department],['Prepared By',d.prepared_by],['Beginning Balance',Number(d.beginning_balance||0)],['Previous Day Collection',Number(d.prev_day_collection||0)],['Cash Collection',Number(pick('dcr_collections').reduce((s,x)=>s+Number(x.cash||0),0))],['Check Collection (incl. PDC)',Number(pick('dcr_collections').reduce((s,x)=>s+Number(x.chk||0),0))],['Check Payments / F1',Number(d.check_payments||0)],['Check Encashment / F2',Number(d.check_encashment||0)],['Total Collection',Number(d.total_collection||0)],['Total Deposit',Number(d.total_deposit||0)],['Ending Balance',Number(d.ending_balance||0)],['PDC Balance at Closing',Number(d.pdc_balance_at_closing||0)],['PDC Tie-out Difference',Number(d.pdc_tieout_diff||0)],['Checked By',d.checked_by],['Verified By',d.verified_by],['Approved By',d.approved_by]];
+ const collections=pick('dcr_collections'),pdc=pick('dcr_pdc_entries'),checks=pick('dcr_checks'),deposits=pick('dcr_deposits'),counts=pick('cash_counts');
+ const sheets=[
+ {name:'DCR Summary',rows:summary},
+ {name:'A Collections',rows:dcrSheetRows('A. Recent Day Collection',['JE No.','Payor','Cash','Check','Remarks'],collections,['je_no','payor','cash','chk','remarks'])},
+ {name:'B PDC Received',rows:dcrSheetRows('B. Post-Dated Checks Received',['Check Date','Bank','Check No.','Amount','Payor','Teller'],pdc,['check_date','bank','check_no','amount','payor','teller'])},
+ {name:'F1 Check Collection',rows:dcrSheetRows('F1. Checks Collection',['Check Date','Check No.','Bank','Shipper / Payor','Amount','Remarks'],checks.filter(x=>x.kind==='collection'),['check_date','check_no','bank','payor','amount','remarks'])},
+ {name:'F2 Encashment',rows:dcrSheetRows('F2. Encashment of Checks',['Check Date','Check No.','Bank','Payee / Encashed By','Amount','Remarks'],checks.filter(x=>x.kind==='encashment'),['check_date','check_no','bank','payor','amount','remarks'])},
+ {name:'D Deposits',rows:dcrSheetRows('D. Deposits Made Today',['Type','Bank / Account','Amount','Deposit Slip / JE No.','Remarks'],deposits,['kind','bank_account','amount','ref_no','remarks'])},
+ {name:'C Cash Count',rows:dcrSheetRows('C. Cash Count',['Denomination','Pieces','Amount'],counts.map(x=>({...x,amount:Number(x.denom)*Number(x.pieces)})),['denom','pieces','amount'])}
+ ];
+ dcrXlsDownload('DCR_'+d.dcr_no.replace(/[^A-Za-z0-9_-]/g,'_')+'.xls',sheets)
+}
+function exportDcrHistoryExcel(){
+ const rows=A.slice().sort((a,b)=>(a.date_covered||'').localeCompare(b.date_covered||''));
+ const headers=['DCR No.','Date Covered','Status','Beginning Balance','Previous Day Collection','Total Collection','Total Deposit','Ending Balance','PDC Balance at Closing','PDC Tie-out Difference','Prepared By','Checked By','Verified By','Approved By'];
+ const keys=['dcr_no','date_covered','status','beginning_balance','prev_day_collection','total_collection','total_deposit','ending_balance','pdc_balance_at_closing','pdc_tieout_diff','prepared_by','checked_by','verified_by','approved_by'];
+ dcrXlsDownload('LiteShipping_DCR_History_'+today()+'.xls',[{name:'DCR History',rows:[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — HISTORY'],headers,...rows.map(x=>keys.map(k=>x[k]??''))]}])
+}
 async function csv(w){const{data:all}=await sb.from(w=='pdc'?'pdc_register':'dcr_records').select('*').limit(5000),vis=w=='pdc'&&$('#pt')?new Set([...document.querySelectorAll('#pt tr[data-id]')].filter(r=>r.style.display!='none').map(r=>r.dataset.id)):null,data=vis?all.filter(x=>vis.has(x.id)):all,h=Object.keys(data[0]||{}),s=[h.join(','),...data.map(o=>h.map(k=>JSON.stringify(o[k]??'')).join(','))].join('\n');dl(w+'_'+today()+'.csv',s,'text/csv')}
 init()
