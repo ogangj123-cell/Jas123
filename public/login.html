@@ -1,1 +1,118 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10263f"><link rel="stylesheet" href="/theme.css"><title>Sign in | Lite Shipping DCR Monitor</title></head><body><main class="login-wrap"><section class="login-card"><div class="brand-mark">LS</div><p class="eyebrow">LITE SHIPPING CORPORATION</p><h1>Staff sign in</h1><p class="muted">Enter your approved staff email. We'll send a one-time sign-in code.</p><form id="f"><label>Email address<input id="email" type="email" required autocomplete="username webauthn"></label><label id="codeRow" hidden>6-digit code<input id="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code"></label><button class="primary" id="go">Continue</button></form><p id="msg" class="hint" aria-live="polite"></p></section></main><script>document.getElementById('f').addEventListener('submit',async e=>{e.preventDefault();const A=window.hatchable.auth,email=document.getElementById('email').value.trim(),row=document.getElementById('codeRow'),msg=document.getElementById('msg'),go=document.getElementById('go');go.disabled=true;try{if(row.hidden){await A.startLogin({email});row.hidden=false;go.textContent='Sign in';msg.textContent='Check your email for the one-time code.';}else{await A.verifyCode({email,code:document.getElementById('code').value.trim()});location.replace('/');}}catch(err){msg.textContent=err.message||'Sign-in failed.';}finally{go.disabled=false;}});window.hatchable.auth.getSession().then(s=>{if(s&&s.user)location.replace('/');});</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#00145f">
+<meta name="robots" content="noindex,nofollow">
+<title>Sign in | Lite Shipping DCR Monitor</title>
+<style>
+:root{--navy:#00145f;--yellow:#ffcb00;--ink:#14213d;--muted:#64718e;--line:#cbd4e5}
+*{box-sizing:border-box}
+html,body{min-height:100%;margin:0}
+body{min-height:100vh;display:grid;place-items:center;padding:28px 18px;font:15px/1.45 system-ui,-apple-system,"Segoe UI",Arial,sans-serif;color:var(--ink);background:linear-gradient(120deg,rgba(0,13,54,.58),rgba(0,20,95,.28)),url('/dcr-vessel-background.jpg') center center/cover fixed no-repeat}
+.shell{width:min(100%,460px)}
+.brand{text-align:center;color:#fff;margin:0 auto 18px;text-shadow:0 2px 12px #00123d}
+.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:64px;height:64px;border:2px solid rgba(255,255,255,.88);border-radius:50%;font-size:29px;font-weight:800;letter-spacing:-3px;background:rgba(0,20,95,.72);box-shadow:0 6px 24px #00123d55}
+.brand h1{font-size:clamp(20px,4vw,27px);letter-spacing:.08em;margin:10px 0 1px;font-weight:850}
+.brand p{margin:0;font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#fff}
+.card{overflow:hidden;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.72);border-radius:17px;box-shadow:0 24px 70px rgba(0,12,48,.38)}
+.card-head{background:var(--navy);color:#fff;text-align:center;padding:21px 24px 18px;border-bottom:5px solid var(--yellow)}
+.card-head h2{font-size:25px;margin:0;font-weight:800;letter-spacing:.02em}
+.card-head p{margin:3px 0 0;color:#dce6ff;font-size:13px}
+.content{padding:27px 30px 25px}
+.field{margin-bottom:16px}
+label{display:block;font-weight:700;font-size:13px;margin-bottom:7px;color:#26365e}
+input{width:100%;height:49px;border:1px solid var(--line);border-radius:8px;padding:0 14px;font:inherit;color:var(--ink);background:#fff;outline:none}
+input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(0,20,95,.11)}
+button{width:100%;min-height:48px;border:0;border-radius:8px;background:var(--navy);color:#fff;font:700 15px system-ui;cursor:pointer;padding:12px 16px;transition:.15s}
+button:hover{background:#092a86}
+button:disabled{opacity:.55;cursor:wait}
+button.secondary{background:#fff;color:var(--navy);border:1px solid #c6d1e8;margin-top:9px}
+button.secondary:hover{background:#f0f4fc}
+button.yellow{background:var(--yellow);color:var(--navy)}
+button.yellow:hover{background:#f0bb00}
+.note{font-size:12px;color:#566482;background:#eef3ff;border-left:4px solid var(--yellow);padding:11px 13px;border-radius:5px;margin-top:17px}
+.msg{min-height:22px;margin:13px 0 0;text-align:center;font-size:13px;color:#415174}
+.msg.err{color:#a00022}
+.msg.ok{color:#087f23}
+.alt{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:12px;font-size:12px;color:var(--muted)}
+.alt button{width:auto;min-height:0;padding:4px 0;background:none;color:var(--navy);font-size:12px}
+[hidden]{display:none!important}
+.foot{text-align:center;color:#fff;text-shadow:0 1px 7px #00123d;font-size:11px;margin-top:17px;letter-spacing:.04em}
+@media(max-width:480px){body{padding:20px 14px;background-attachment:scroll}.content{padding:23px 20px}.card-head{padding:18px}.brand-mark{width:56px;height:56px}}
+</style>
+</head>
+<body>
+<div class="shell">
+ <header class="brand">
+  <div class="brand-mark" aria-hidden="true">LS</div>
+  <h1>LITE SHIPPING CORPORATION</h1>
+  <p>Safe Voyage · Stronger Together</p>
+ </header>
+ <section class="card" aria-labelledby="title">
+  <div class="card-head"><h2 id="title">DCR MONITOR</h2><p>Daily Collections Report System</p></div>
+  <div class="content">
+   <p id="intro" style="margin:0 0 20px;color:#596783;text-align:center;font-size:13px">Sign in using your registered staff email. A one-time verification code protects your first sign-in.</p>
+   <form id="form" novalidate>
+    <div class="field" id="emailRow"><label for="email">Username / Work Email</label><input id="email" name="email" type="email" placeholder="name@company.com" autocomplete="username webauthn" autocapitalize="off" spellcheck="false" required></div>
+    <div class="field" id="codeRow" hidden><label for="code">One-Time Verification Code</label><input id="code" name="code" inputmode="numeric" maxlength="6" placeholder="Enter the 6-digit code" autocomplete="one-time-code"></div>
+    <button id="submit" type="submit">Continue</button>
+    <button id="back" class="secondary" type="button" hidden>Use a different email</button>
+   </form>
+   <div id="passkey" hidden>
+    <div class="note"><strong>First sign-in verified.</strong><br>Set up a passkey on this device to sign in next time using your fingerprint, face, or device screen lock instead of an emailed code.</div>
+    <button id="passkeyAdd" class="yellow" type="button" style="margin-top:14px">Set up secure one-time sign-in</button>
+    <button id="passkeySkip" class="secondary" type="button">Continue without passkey</button>
+   </div>
+   <p id="msg" class="msg" role="status" aria-live="polite"></p>
+   <div class="alt"><span>Authorized staff access only</span><button id="help" type="button">Need help?</button></div>
+   <p id="helpText" hidden style="font-size:12px;color:#596783;text-align:center;margin:10px 0 0">Please contact your DCR administrator to confirm your registered work email and staff access approval.</p>
+   <div class="note" id="firstNote">First time here? Enter your registered work email. We will send a one-time code to verify your account. After verification, you can register a passkey for faster future sign-ins.</div>
+  </div>
+ </section>
+ <footer class="foot">LITE SHIPPING CORPORATION · DCR MONITOR · SECURE STAFF PORTAL</footer>
+</div>
+<script>
+(function(){
+ const A=window.hatchable&&window.hatchable.auth;
+ const $=id=>document.getElementById(id);
+ const form=$('form'),email=$('email'),code=$('code'),emailRow=$('emailRow'),codeRow=$('codeRow'),submit=$('submit'),back=$('back'),msg=$('msg'),passkey=$('passkey');
+ let step='email',hasPasskey=false;
+ const declinedKey='dcr_passkey_offer_declined';
+ function say(t,k){msg.textContent=t||'';msg.className='msg '+(k||'')}
+ function next(){const raw=new URLSearchParams(location.search).get('next')||'/';if(raw[0]==='/'&&raw[1]!=='/'&&!/[\\\u0000-\u001f\u007f]/.test(raw))location.replace(raw);else location.replace('/')}
+ function showPasskey(){
+  form.hidden=true;$('intro').hidden=true;$('firstNote').hidden=true;back.hidden=true;passkey.hidden=false;
+  $('passkeyAdd').focus();say('Your email verification is complete.','ok');
+ }
+ if(!A){say('Secure sign-in is temporarily unavailable. Please refresh the page.','err');submit.disabled=true;return}
+ A.getSession().then(s=>{if(s&&s.user)next()}).catch(()=>{});
+ if(A.attachPasskeyAutofill){try{A.attachPasskeyAutofill(email).then(r=>{if(r&&r.user)next()}).catch(()=>{})}catch(e){}}
+ back.addEventListener('click',()=>{step='email';emailRow.hidden=false;codeRow.hidden=true;back.hidden=true;submit.textContent='Continue';say('');email.focus()});
+ form.addEventListener('submit',async e=>{
+  e.preventDefault();submit.disabled=true;
+  try{
+   if(step==='email'){
+    const address=email.value.trim().toLowerCase();if(!address)throw new Error('Enter your registered work email.');
+    const r=await A.startLogin({email:address});hasPasskey=!!(r&&r.has_passkey);
+    if(hasPasskey&&A.supportsPasskeys&&A.supportsPasskeys()){
+     try{const signed=await A.signInWithPasskey({email:address});if(signed&&signed.user){next();return}}catch(e){}
+    }
+    step='code';emailRow.hidden=true;codeRow.hidden=false;back.hidden=false;submit.textContent='Verify & Sign In';$('intro').textContent='Enter the six-digit code sent to '+address+'.';$('firstNote').hidden=true;say('Verification code sent. Check your work email.','ok');code.focus();
+   }else{
+    const result=await A.verifyCode({email:email.value.trim().toLowerCase(),code:code.value.trim()});
+    if(!result||!result.user)throw new Error('Verification failed. Please check the code.');
+    if(!hasPasskey&&A.supportsPasskeys&&A.supportsPasskeys()&&localStorage.getItem(declinedKey)!=='1')showPasskey();else next();
+   }
+  }catch(err){say((err&&err.message)||'Sign-in failed. Please try again.','err')}
+  finally{submit.disabled=false}
+ });
+ $('passkeyAdd').addEventListener('click',async()=>{const b=$('passkeyAdd');b.disabled=true;try{const saved=await A.registerPasskey({name:'DCR Monitor device'});if(!saved)localStorage.setItem(declinedKey,'1');next()}catch(e){say((e&&e.message)||'Could not register this device. You can continue without a passkey.','err');b.disabled=false}});
+ $('passkeySkip').addEventListener('click',()=>{localStorage.setItem(declinedKey,'1');next()});
+ $('help').addEventListener('click',()=>$('helpText').hidden=!$('helpText').hidden);
+ email.focus();
+})();
+</script>
+</body>
+</html>
