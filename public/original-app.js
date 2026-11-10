@@ -296,62 +296,56 @@ function exportDcrHistoryExcel(){
 }
 function exportAllReportsXlsx(){
  if(!window.XLSX){alert('The Excel workbook library is still loading. Please refresh and try again.');return}
- const wb=XLSX.utils.book_new(),navy='00145F',yellow='FFCB00',white='FFFFFF',blue='E4EAF8',border='D5DBE8',usedNames=new Set();
- const moneyFmt='"₱"#,##0.00;[Red]("₱"#,##0.00);-';
- function addSheet(name,rows,widths){
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=(widths||[]).map(w=>({wch:w}));
-  const range=XLSX.utils.decode_range(ws['!ref']||'A1:A1');
+ const wb=XLSX.utils.book_new(),navy='00145F',yellow='FFCB00',white='FFFFFF',pale='E4EAF8',border='D5DBE8',usedNames=new Set(),moneyFmt='"₱"#,##0.00;[Red]("₱"#,##0.00);-';
+ const hist=(T('dcr_records')||[]).slice().sort((a,b)=>(a.date_covered||'').localeCompare(b.date_covered||'')),pdc=(T('pdc_register')||[]).slice().sort((a,b)=>(a.reg_date||'').localeCompare(b.reg_date||''));
+ const todayISO=today(),days=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5),sum=(a,k)=>a.reduce((s,x)=>s+Number(x[k]||0),0),round=x=>Math.round((Number(x)||0)*100)/100;
+ function addSheet(name,rows,widths,opts={}){
+  const ws=XLSX.utils.aoa_to_sheet(rows),range=XLSX.utils.decode_range(ws['!ref']||'A1:A1');
+  ws['!cols']=(widths||[]).map(w=>({wch:w}));ws['!sheetViews']=[{showGridLines:false}];
   for(let R=range.s.r;R<=range.e.r;R++)for(let C=range.s.c;C<=range.e.c;C++){
    const ref=XLSX.utils.encode_cell({r:R,c:C});if(!ws[ref])continue;
    ws[ref].s={font:{name:'Arial',sz:10,color:{rgb:'1B2440'}},alignment:{vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:border}},bottom:{style:'thin',color:{rgb:border}},left:{style:'thin',color:{rgb:border}},right:{style:'thin',color:{rgb:border}}}};
-   if(R===0||R===1){ws[ref].s={font:{name:'Arial',sz:R===0?14:12,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{vertical:'center',horizontal:'left'}}}
-   else if(R===2){ws[ref].s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:yellow}},alignment:{vertical:'center',wrapText:true}}}
-   else if(R%2===0){ws[ref].s.fill={fgColor:{rgb:'F7F9FD'}}}
-   if(typeof ws[ref].v==='number'&&/(Amount|Balance|Collection|Deposit|Cash|Check|Difference|Total|Denomination Value)/i.test(String(rows[2]?.[C]||'')))ws[ref].z=moneyFmt;
+   if(R===0){ws[ref].s={font:{name:'Arial',sz:15,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{vertical:'center',horizontal:'left'}}}
+   else if(R===1){ws[ref].s={font:{name:'Arial',sz:12,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{vertical:'center',horizontal:'left'}}}
+   else if(opts.headerRows&&opts.headerRows.includes(R)){ws[ref].s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:yellow}},alignment:{vertical:'center',wrapText:true},border:{bottom:{style:'medium',color:{rgb:navy}}}}}
+   else if(R%2===0)ws[ref].s.fill={fgColor:{rgb:'F7F9FD'}};
+   if(typeof ws[ref].v==='number'&&opts.moneyCols&&opts.moneyCols.includes(C))ws[ref].z=moneyFmt;
   }
-  ws['!freeze']={xSplit:0,ySplit:3};
-  if(range.e.r>=2)ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:range.e})};
-  ws['!pageSetup']={orientation:range.e.c>6?'landscape':'portrait',paperSize:9,fitToWidth:1,fitToHeight:0};
-  ws['!margins']={left:0.25,right:0.25,top:0.5,bottom:0.5,header:0.2,footer:0.2};
-  let sheetName=name.slice(0,31),base=sheetName,n=2;while(usedNames.has(sheetName)){sheetName=(base.slice(0,27)+' '+n++).slice(0,31)}usedNames.add(sheetName);XLSX.utils.book_append_sheet(wb,ws,sheetName);
-  return ws;
+  ws['!freeze']={xSplit:0,ySplit:opts.freeze||3};
+  if(opts.filterRow!=null&&range.e.r>=opts.filterRow)ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:opts.filterRow,c:0},e:range.e})};
+  ws['!pageSetup']={orientation:opts.orientation||(range.e.c>6?'landscape':'portrait'),paperSize:9,fitToWidth:1,fitToHeight:0};
+  ws['!margins']={left:0.25,right:0.25,top:0.45,bottom:0.45,header:0.2,footer:0.2};
+  ws['!rows']=[{hpt:25},{hpt:22}];
+  let sheetName=name.slice(0,31),base=sheetName,n=2;while(usedNames.has(sheetName)){sheetName=(base.slice(0,27)+' '+n++).slice(0,31)}usedNames.add(sheetName);XLSX.utils.book_append_sheet(wb,ws,sheetName);return ws;
  }
  function titleRows(title,subtitle,headers,records,keys){return [['LITE SHIPPING CORPORATION'],[title+'  |  '+subtitle],headers,...records.map(o=>keys.map(k=>o[k]??''))]}
- const hist=(T('dcr_records')||[]).slice().sort((a,b)=>(a.date_covered||'').localeCompare(b.date_covered||''));
  const hkeys=['dcr_no','date_covered','status','beginning_balance','prev_day_collection','total_collection','total_deposit','ending_balance','pdc_balance_at_closing','pdc_tieout_diff','prepared_by','checked_by','verified_by','approved_by'];
- addSheet('DCR History',titleRows('DAILY COLLECTION REPORT — HISTORY','All DCR records',['DCR No.','Date Covered','Status','Beginning Balance','Previous Day Collection','Total Collection','Total Deposit','Ending Balance','PDC Balance at Closing','PDC Tie-out Difference','Prepared By','Checked By','Verified By','Approved By'],hist,hkeys),[18,14,12,18,20,18,18,18,22,22,24,20,20,20]);
- const tx=txBuildRows();
- const tkeys=['dcr_no','dcr_date','date','type','reference','bank','payor','teller','cash','check','amount','remarks'];
- const tws=addSheet('Transaction Reports',titleRows('TRANSACTION REPORTS','All transactions · PDC detail rows are traceability only and excluded from report total',['DCR No.','DCR Date','Transaction Date','Transaction Type','JE / Check / Deposit Ref.','Bank / Account','Payor / Payee','Teller','Cash','Check','Amount','Remarks'],tx,tkeys),[18,14,16,24,24,22,26,20,16,16,16,36]);
- const txTotal=tx.filter(x=>!x.detail).reduce((s,x)=>s+Number(x.amount||0),0);
- const txEnd=XLSX.utils.decode_range(tws['!ref']).e.r+1;
- XLSX.utils.sheet_add_aoa(tws,[['Report Total (excluding PDC detail rows)',txTotal]],{origin:'A'+(txEnd+1)});
- const pdc=(T('pdc_register')||[]).slice().sort((a,b)=>(a.reg_date||'').localeCompare(b.reg_date||''));
- addSheet('Live PDC Register',titleRows('LIVE PDC REGISTER','All registered checks at export time',['Date','Bank','Check No.','Amount','AR No.','Account Name','Status','Date Deposited','Due Date','Remarks'],pdc,['reg_date','bank','check_no','amount','ar_no','account_name','status','date_deposited','due_date','remarks']),[14,16,20,16,18,28,16,16,16,36]);
+ addSheet('DCR History',titleRows('DAILY COLLECTION REPORT — HISTORY','All saved DCR records',['DCR No.','Date Covered','Status','Beginning Balance','Previous Day Collection','Total Collection','Total Deposit','Ending Balance','PDC Balance at Closing','PDC Tie-out Difference','Prepared By','Checked By','Verified By','Approved By'],hist,hkeys),[18,14,12,18,20,18,18,18,22,22,24,20,20,20],{filterRow:2,headerRows:[2],moneyCols:[3,4,5,6,7,8,9],freeze:3});
+ const tx=txBuildRows(),tkeys=['dcr_no','dcr_date','date','type','reference','bank','payor','teller','cash','check','amount','remarks'];
+ const tws=addSheet('Transaction Reports',titleRows('TRANSACTION REPORTS','All transactions · PDC detail rows are traceability only and excluded from report total',['DCR No.','DCR Date','Transaction Date','Transaction Type','JE / Check / Deposit Ref.','Bank / Account','Payor / Payee','Teller','Cash','Check','Amount','Remarks'],tx,tkeys),[18,14,16,24,24,22,26,20,16,16,16,36],{filterRow:2,headerRows:[2],moneyCols:[8,9,10],freeze:3});
+ const txTotal=tx.filter(x=>!x.detail).reduce((s,x)=>s+Number(x.amount||0),0),txEnd=XLSX.utils.decode_range(tws['!ref']).e.r+1;
+ XLSX.utils.sheet_add_aoa(tws,[['REPORT TOTAL (excluding PDC detail rows)',txTotal]],{origin:'A'+(txEnd+1)});
+ const dup={};pdc.forEach(x=>{const k=String(x.bank||'')+'|'+String(x.check_no||'');dup[k]=(dup[k]||0)+1});
+ const undep=pdc.filter(x=>x.status==='Undeposited'),dep=pdc.filter(x=>x.status==='Deposited'),bounced=pdc.filter(x=>x.status==='Bounced'),due7=undep.filter(x=>x.reg_date>=todayISO&&x.reg_date<=addd(7)),overdue=undep.filter(x=>x.reg_date<todayISO);
+ const pdcHeaders=['Date','Bank','Check No.','Amount','AR No.','Account Name','Duplicate Check?','Status','Date Deposited','Days to Due'];
+ const pdcRecords=pdc.map(x=>[x.reg_date||'',x.bank||'',x.check_no||'',Number(x.amount||0),x.ar_no||'',x.account_name||'',(dup[String(x.bank||'')+'|'+String(x.check_no||'')]>1?'DUPLICATE':'OK'),x.status||'',x.date_deposited||'',x.status==='Undeposited'?days(todayISO,x.reg_date):'—']);
+ const pdcRows=[['LITE SHIPPING CORPORATION'],['LIVE PDC REGISTER  |  All registered checks at export time'],['Undeposited',sum(undep,'amount'),'Undeposited Checks',undep.length,'Deposited',sum(dep,'amount'),'Deposited Checks',dep.length,'Bounced',sum(bounced,'amount')],['Due in 7 Days',due7.length,'Overdue',overdue.length,'Duplicate Records',pdc.filter(x=>dup[String(x.bank||'')+'|'+String(x.check_no||'')]>1).length],pdcHeaders,...pdcRecords,['TOTAL REGISTERED',sum(pdc,'amount'),'','','','','','','','']];
+ const pws=addSheet('Live PDC Register',pdcRows,[14,16,20,16,18,28,18,16,16,16],{filterRow:4,headerRows:[4],moneyCols:[1,3],freeze:5,orientation:'landscape'});
+ for(let c=0;c<10;c++){const cell=pws[XLSX.utils.encode_cell({r:2,c})];if(cell)cell.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:pale}},alignment:{vertical:'center',wrapText:true}};const cell2=pws[XLSX.utils.encode_cell({r:3,c})];if(cell2)cell2.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:yellow}},alignment:{vertical:'center',wrapText:true}}}
  hist.forEach((d,i)=>{
-  const pick=k=>(T(k)||[]).filter(x=>x.dcr_id===d.id);
-  const collections=pick('dcr_collections'),pdcRows=pick('dcr_pdc_entries'),checks=pick('dcr_checks'),deposits=pick('dcr_deposits'),counts=pick('cash_counts');
-  const safe=(d.dcr_no||('DCR '+(i+1))).replace(/[^A-Za-z0-9_-]/g,' ').trim().slice(0,18);
-  const summary=[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — '+(d.dcr_no||'DCR')],['DCR No.',d.dcr_no,'Date Covered',d.date_covered],['Status',d.status,'Department',d.department],['Prepared By',d.prepared_by],['Beginning Balance',Number(d.beginning_balance||0)],['Previous Day Collection',Number(d.prev_day_collection||0)],['Cash Collection',collections.reduce((s,x)=>s+Number(x.cash||0),0)],['Check Collection (incl. PDC)',collections.reduce((s,x)=>s+Number(x.chk||0),0)],['Check Payments / F1',Number(d.check_payments||0)],['Check Encashment / F2',Number(d.check_encashment||0)],['Total Collection',Number(d.total_collection||0)],['Total Deposit',Number(d.total_deposit||0)],['Ending Balance',Number(d.ending_balance||0)],['PDC Balance at Closing',Number(d.pdc_balance_at_closing||0)],['PDC Tie-out Difference',Number(d.pdc_tieout_diff||0)],['Checked By',d.checked_by],['Verified By',d.verified_by],['Approved By',d.approved_by]];
-  const ws=addSheet(('DCR '+safe).slice(0,31),summary,[30,24,24,24,24,20]);
-  const sections=[
-   ['A. Recent Day Collection',['JE No.','Payor','Cash','Check','Remarks'],collections,['je_no','payor','cash','chk','remarks']],
-   ['B. Post-Dated Checks Received',['Check Date','Bank','Check No.','Amount','Payor','Teller'],pdcRows,['check_date','bank','check_no','amount','payor','teller']],
-   ['F1. Checks Collection',['Check Date','Check No.','Bank','Shipper / Payor','Amount','Remarks'],checks.filter(x=>x.kind==='collection'),['check_date','check_no','bank','payor','amount','remarks']],
-   ['F2. Encashment of Checks',['Check Date','Check No.','Bank','Payee / Encashed By','Amount','Remarks'],checks.filter(x=>x.kind==='encashment'),['check_date','check_no','bank','payor','amount','remarks']],
-   ['D. Deposits Made Today',['Type','Bank / Account','Amount','Deposit Slip / JE No.','Remarks'],deposits,['kind','bank_account','amount','ref_no','remarks']],
-   ['C. Cash Count',['Denomination','Pieces','Amount'],counts.map(x=>Object.assign({},x,{amount:Number(x.denom||0)*Number(x.pieces||0)})),['denom','pieces','amount']]
-  ];
-  let row=summary.length+2;
-  sections.forEach(sec=>{
-   XLSX.utils.sheet_add_aoa(ws,[[sec[0]],[...sec[1]],...sec[2].map(o=>sec[3].map(k=>o[k]??''))],{origin:'A'+row});
-   const end=row+1;
-   for(let C=0;C<sec[1].length;C++){
-    const cell=ws[XLSX.utils.encode_cell({r:end-1,c:C})];if(cell)cell.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{wrapText:true}};
-   }
-   row+=sec[2].length+4;
-  });
+  const pick=k=>(T(k)||[]).filter(x=>x.dcr_id===d.id),collections=pick('dcr_collections'),pdcRows=pick('dcr_pdc_entries'),checks=pick('dcr_checks'),deposits=pick('dcr_deposits'),counts=pick('cash_counts');
+  const cashRec=round(sum(collections,'cash')),checkRec=round(sum(collections,'chk')),pdcRecv=round(sum(pdcRows,'amount')),f1=checks.filter(x=>x.kind==='collection'),f2=checks.filter(x=>x.kind==='encashment'),f1Total=round(sum(f1,'amount')),f2Total=round(sum(f2,'amount'));
+  const cashCount=round(counts.reduce((s,x)=>s+Number(x.denom||0)*Number(x.pieces||0),0)+Number(d.coins||0)-Number(d.coins_retained||0)),prevDep=round(deposits.filter(x=>x.kind!=='pdc').reduce((s,x)=>s+Number(x.amount||0),0)),pdcDep=round(deposits.filter(x=>x.kind==='pdc').reduce((s,x)=>s+Number(x.amount||0),0)),recent=round(cashRec+checkRec-pdcRecv),ending=round(Number(d.beginning_balance||0)+recent-prevDep-pdcDep),pdcOnHand=round(ending-recent-(Number(d.prev_day_collection||0)-prevDep));
+  const rgDue=pdc.filter(x=>(x.status==='Undeposited'&&x.reg_date<=d.date_covered)||(x.status==='Deposited'&&x.date_deposited===d.date_covered)).sort((a,b)=>(a.check_no||'').localeCompare(b.check_no||'')),rgFuture=pdc.filter(x=>x.status==='Undeposited'&&x.reg_date>d.date_covered),selected=rgDue.filter(x=>x.status==='Deposited'&&x.date_deposited===d.date_covered);
+  const safe=(d.dcr_no||('DCR '+(i+1))).replace(/[^A-Za-z0-9_-]/g,' ').trim().slice(0,18),rows=[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT (DCR)  |  '+(d.dcr_no||'DCR')+'  |  '+String(d.status||'').toUpperCase()],['DCR No.',d.dcr_no,'Date Covered',d.date_covered,'Department',d.department],['Status',d.status,'Prepared By',d.prepared_by,'OR / AR From',d.or_from],['OR / AR To',d.or_to,'Voided / Cancelled ORs',d.or_void],['E. BEGINNING BALANCE (previous DCR ending)',Number(d.beginning_balance||0),'Previous Day Collection',Number(d.prev_day_collection||0)],['A. RECENT DAY COLLECTION (per NetSuite)'],['JE No.','Teller / Purser / Payor','Cash','Check (incl. PDC received)','Remarks'],...collections.map(x=>[x.je_no||'',x.payor||'',Number(x.cash||0),Number(x.chk||0),x.remarks||'']),['TOTAL COLLECTION PER SECTION A',cashRec,checkRec],['B. POST-DATED CHECKS (PDC) RECEIVED TODAY'],['Date (Check Date)','Check No.','Amount','Bank','Shipper / Payor','Teller'],...pdcRows.map(x=>[x.check_date||'',x.check_no||'',Number(x.amount||0),x.bank||'',x.payor||'',x.teller||'']),['TOTAL PDC RECEIVED',pdcRecv],['C. CASH COUNT & VARIANCE'],['Denomination','Pieces','Amount'],...counts.slice().sort((a,b)=>Number(b.denom)-Number(a.denom)).map(x=>[Number(x.denom||0),Number(x.pieces||0),Number(x.denom||0)*Number(x.pieces||0)]),['Other coins / loose change',Number(d.coins||0)],['Less: coins retained (change fund)',Number(d.coins_retained||0)],['Encashment of checks — total of F2',f2Total],['Checks collected — total of F1 (excl. PDC)',f1Total],['Physical cash counted (net of change fund)',cashCount],['Cash over / (short)',round(cashCount+f2Total-cashRec)],['D. DEPOSITS MADE TODAY'],['Description','Bank / Account','Amount','Deposit Slip / JE No.','Remarks'],...deposits.map(x=>[x.kind||'',x.bank_account||'',Number(x.amount||0),x.ref_no||'',x.remarks||'']),['Deposits — previous day collection',prevDep],['PDC deposited today',pdcDep],['E. RUNNING BALANCE'],['Beginning Balance',Number(d.beginning_balance||0)],['Add: cash & current-dated checks (for next-day deposit)',recent],['Add: PDC received today (part of Check column)',pdcRecv],['Less: previous-day collection deposited',prevDep],['Less: PDC deposited today',pdcDep],['ENDING BALANCE (undeposited collections)',Number(d.ending_balance??ending)],['PDC on hand per DCR',Number(d.pdc_balance_at_closing??pdcOnHand)],['PDC Register balance at closing',Number(d.pdc_balance_at_closing??pdcOnHand)],['PDC Tie-out Difference',Number(d.pdc_tieout_diff||0)],['F. SUMMARY OF CHECKS COLLECTION AND ENCASHMENT OF CHECKS'],['F1. Checks Collection (current-dated; PDC listed in Section B)'],['Check Date','Check No.','Bank','Shipper / Payor','Amount','Remarks'],...f1.map(x=>[x.check_date||'',x.check_no||'',x.bank||'',x.payor||'',Number(x.amount||0),x.remarks||'']),['F1 TOTAL',f1Total],['F2. Encashment of Checks (part of the Cash column)'],['Check Date','Check No.','Bank','Payee / Encashed by','Amount','Remarks'],...f2.map(x=>[x.check_date||'',x.check_no||'',x.bank||'',x.payor||'',Number(x.amount||0),x.remarks||'']),['F2 TOTAL',f2Total],['G. POST-DATED CHECKS DUE FOR DEPOSIT ON '+d.date_covered],['Deposit?','Check Date','Bank','Check No.','Account Name','AR No.','Amount','Days Past Due','Status'],...rgDue.map(x=>[x.status==='Deposited'&&x.date_deposited===d.date_covered?'YES':'NO',x.reg_date,x.bank,x.check_no,x.account_name,x.ar_no,Number(x.amount||0),Math.max(0,days(x.reg_date,d.date_covered)),x.status]),['Due / past due total',sum(rgDue,'amount'),'Selected for deposit',sum(selected,'amount'),'Not yet due',sum(rgFuture,'amount')],['H. COLLECTION SUMMARY, CASH ACCOUNTABILITY & PDC AGING'],['Collections by mode of payment','Amount'],['Cash',cashRec],['Checks — current dated (deposit next banking day)',round(checkRec-pdcRecv)],['Checks — post-dated (PDC, held until due date)',pdcRecv],['TOTAL COLLECTIONS',Number(d.total_collection??cashRec+checkRec)],['Cash collections per records',cashRec],['Less: checks encashed (cash paid out)',f2Total],['Cash that should be on hand',round(cashRec-f2Total)],['Actual cash counted (bills + coins, net of change fund)',cashCount],['Cash over / (short)',round(cashCount+f2Total-cashRec)],['PDC AGING — undeposited, as of '+d.date_covered],['Aging Bucket','Checks','Amount']];
+  const buckets=[['Not yet due (post-dated)',x=>days(d.date_covered,x.reg_date)<0],['Due on DCR date',x=>days(d.date_covered,x.reg_date)===0],['Past due 1–30 days',x=>days(x.reg_date,d.date_covered)>=1&&days(x.reg_date,d.date_covered)<=30],['Past due 31–90 days',x=>days(x.reg_date,d.date_covered)>30&&days(x.reg_date,d.date_covered)<=90],['Past due 91–180 days',x=>days(x.reg_date,d.date_covered)>90&&days(x.reg_date,d.date_covered)<=180],['Stale — over 180 days',x=>days(x.reg_date,d.date_covered)>180]];
+  buckets.forEach(([label,test])=>{const a=undep.filter(test);rows.push([label,a.length,sum(a,'amount')])});rows.push(['TOTAL UNDEPOSITED PDC',undep.length,sum(undep,'amount')],['CERTIFICATION'],['I certify that this report is a true and correct statement of the collections received and the deposits made for the date covered, supported by Official Receipts / Acknowledgment Receipts and bank deposit slips.'],['Prepared by (Cashier / Teller)',d.prepared_by||''],['Checked by (Accounting)',d.checked_by||''],['Verified by (Treasury)',d.verified_by||''],['Approved by',d.approved_by||'']);
+  const ws=addSheet(('DCR '+safe).slice(0,31),rows,[36,25,18,24,25,22,18,18,18,18],{orientation:'landscape',freeze:2});
+  const sectionStarts=[];rows.forEach((r,idx)=>{if(typeof r[0]==='string'&&/^(?:[A-H]\. |CERTIFICATION)/.test(r[0]))sectionStarts.push(idx)});
+  sectionStarts.forEach(R=>{for(let C=0;C<10;C++){const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];if(cell)cell.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:pale}},alignment:{vertical:'center',wrapText:true},border:{left:{style:'medium',color:{rgb:yellow}}}}}});
+  [6,10,14,21,30,36,40,47,53].forEach(R=>{if(R<rows.length)for(let C=0;C<10;C++){const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];if(cell)cell.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{vertical:'center',wrapText:true}}}});
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:9}},{s:{r:1,c:0},e:{r:1,c:9}}];
+  ws['!printTitleRows']='1:2';
  });
  const date=new Date().toISOString().slice(0,10);
  XLSX.writeFile(wb,'LiteShipping_All_Reports_'+date+'.xlsx',{bookType:'xlsx',compression:true});
