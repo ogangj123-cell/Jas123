@@ -49,7 +49,7 @@ const sbl={from:t=>new Q(t),rpc:(f,a)=>{try{const d=RPC[f](a);sv();return Promis
 const $=s=>document.querySelector(s),P=n=>{n=Number(n)||0;if(Math.abs(n)<.005)return'-';const t='₱'+Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});return n<0?'('+t+')':t},V=n=>pn(n)||0;
 function pn(v){if(typeof v=='number')return v;let t=String(v==null?'':v).trim();if(t==='')return 0;const g=/^\(.*\)$/.test(t);t=t.replace(/[₱,()\s]/g,'');const x=Number(t);return g?-Math.abs(x):x}
 function fmtN(v){if(v===''||v==null)return'';const x=pn(v);if(isNaN(x))return'';return(x<0?'(':'')+Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+(x<0?')':'')}
-const cfg={};let sb,D,ROLE='cashier',CUR=()=>dash(),PINH=LS.get('dcradmin');const today=()=>new Date().toISOString().slice(0,10),addd=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
+const cfg={};let sb,D,ROLE='cashier',CUR=()=>dash(),PINH=LS.get('dcradmin');sb=sbl;const today=()=>new Date().toISOString().slice(0,10),addd=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
 const out=(h)=>{$('#m').innerHTML=(ROLE=='admin'?'<div class=ab>ADMIN MODE — all fields are editable. Every correction is recorded in the Audit Trail.</div>':'')+h;ra()},S=(a,f)=>a.reduce((s,x)=>s+V(f?f(x):x),0);
 const ES=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'),
 nm=o=>String(o||'').trim(),
