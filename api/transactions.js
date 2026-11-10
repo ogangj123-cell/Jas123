@@ -41,7 +41,7 @@ export default async function(req,res){
  const old=await db.query('SELECT * FROM dcr_transactions WHERE id=$1 AND voided_at IS NULL',[id]);
  if(!old.rows.length) return res.status(404).json({error:'Transaction not found.'});
  await db.query('UPDATE dcr_transactions SET voided_at=now(),voided_by=$1 WHERE id=$2',[String(req.user.id),id]);
- await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,before_data,actor_id,actor_email) VALUES('transaction',$1,'voided',$2::jsonb,$3,$4)",[String(id),JSON.stringify(old.rows[0]),String(req.user.id),a.email]);
+ await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,before_data,after_data,actor_id,actor_email) VALUES('transaction',$1,'voided',$2::jsonb,$3::jsonb,$4,$5)",[String(id),JSON.stringify(old.rows[0]),JSON.stringify({reason:String(req.body?.remarks||'No reason supplied')}),String(req.user.id),a.email]);
  await events.publish('dcr','changed',{kind:'transaction_voided',id});
  res.json({ok:true});
 }
