@@ -4,44 +4,24 @@ export const methods=['GET','POST','PUT'];
 async function staff(u){const r=await db.query('SELECT * FROM app_staff WHERE user_id=$1',[String(u.id)]);return r.rows[0]||null;}
 const allowed=['cash_remittance','check_remittance','check_payment','check_encashment','pdc_received','pdc_deposit','cash_deposit','adjustment'];
 export default async function(req,res){
- const a=await staff(req.user);
- if(!a||!a.active||a.role==='pending') return res.status(403).json({error:'Account pending administrator approval.'});
- if(req.method==='GET'){
-  const q=String(req.query?.q||'').trim(), type=String(req.query?.type||'').trim(), from=String(req.query?.from||''), to=String(req.query?.to||'');
-  const r=await db.query("SELECT t.*,d.dcr_no,d.date_covered FROM dcr_transactions t JOIN dcrs d ON d.id=t.dcr_id WHERE t.voided_at IS NULL AND ($1='' OR d.dcr_no ILIKE '%'||$1||'%' OR t.payor ILIKE '%'||$1||'%' OR t.check_no ILIKE '%'||$1||'%' OR t.ar_no ILIKE '%'||$1||'%' OR t.reference_no ILIKE '%'||$1||'%') AND ($2='' OR t.transaction_type=$2) AND t.transaction_date >= COALESCE(NULLIF($3,'')::date,'0001-01-01'::date) AND t.transaction_date <= COALESCE(NULLIF($4,'')::date,'9999-12-31'::date) ORDER BY t.transaction_date DESC,t.id DESC LIMIT 500",[q,type,from,to]);
-  return res.json({transactions:r.rows});
- }
+ const a=await staff(req.user);if(!a||!a.active||a.role==='pending')return res.status(403).json({error:'Account pending administrator approval.'});
+ if(req.method==='GET'){const q=String(req.query?.q||'').trim(),type=String(req.query?.type||'').trim(),from=String(req.query?.from||''),to=String(req.query?.to||'');const r=await db.query("SELECT t.*,d.dcr_no,d.date_covered FROM dcr_transactions t JOIN dcrs d ON d.id=t.dcr_id WHERE t.voided_at IS NULL AND ($1='' OR d.dcr_no ILIKE '%'||$1||'%' OR t.payor ILIKE '%'||$1||'%' OR t.check_no ILIKE '%'||$1||'%' OR t.ar_no ILIKE '%'||$1||'%' OR t.reference_no ILIKE '%'||$1||'%') AND ($2='' OR t.transaction_type=$2) AND t.transaction_date>=COALESCE(NULLIF($3,'')::date,'0001-01-01'::date) AND t.transaction_date<=COALESCE(NULLIF($4,'')::date,'9999-12-31'::date) ORDER BY t.transaction_date DESC,t.id DESC LIMIT 500",[q,type,from,to]);return res.json({transactions:r.rows});}
  if(req.method==='POST'){
-  const b=req.body||{}, id=Number(b.dcr_id), type=String(b.transaction_type||''), amount=Number(b.amount);
-  if(!allowed.includes(type)||!Number.isFinite(amount)||amount<0||!id||!b.transaction_date) return res.status(400).json({error:'Check DCR, type, date and amount.'});
-  if(type==='adjustment'&&!['admin','accounting'].includes(a.role)) return res.status(403).json({error:'Adjustments require accounting permission.'});
-  const d=await db.query("SELECT id,status FROM dcrs WHERE id=$1",[id]);
-  if(!d.rows.length) return res.status(404).json({error:'DCR not found.'});
-  if(d.rows[0].status!=='open') return res.status(409).json({error:'Closed DCRs cannot receive new transactions.'});
-  if((type==='pdc_received'||type==='pdc_deposit')&&(!String(b.bank||'').trim()||!String(b.check_no||'').trim())) return res.status(400).json({error:'Bank and check number are required for PDC transactions.'});
-  const ref=String(b.client_ref||crypto.randomUUID());
-  const prior=await db.query('SELECT * FROM dcr_transactions WHERE client_ref=$1',[ref]);
-  if(prior.rows.length) return res.json({transaction:prior.rows[0],duplicate:true});
+  if(!['admin','cashier'].includes(a.role))return res.status(403).json({error:'Accounting is view-only. Only Cashier or Admin can add transactions.'});
+  const b=req.body||{},id=Number(b.dcr_id),type=String(b.transaction_type||''),amount=Number(b.amount);
+  if(!allowed.includes(type)||!Number.isFinite(amount)||amount<0||!id||!b.transaction_date)return res.status(400).json({error:'Check DCR, type, date and amount.'});
+  if(type==='adjustment'&&a.role!=='admin')return res.status(403).json({error:'Only Admin can post adjustments.'});
+  const d=await db.query("SELECT id,status FROM dcrs WHERE id=$1",[id]);if(!d.rows.length)return res.status(404).json({error:'DCR not found.'});if(d.rows[0].status!=='open')return res.status(409).json({error:'Closed DCRs cannot receive new transactions.'});
+  if((type==='pdc_received'||type==='pdc_deposit')&&(!String(b.bank||'').trim()||!String(b.check_no||'').trim()))return res.status(400).json({error:'Bank and check number are required for PDC transactions.'});
+  const ref=String(b.client_ref||crypto.randomUUID()),prior=await db.query('SELECT * FROM dcr_transactions WHERE client_ref=$1',[ref]);if(prior.rows.length)return res.json({transaction:prior.rows[0],duplicate:true});
   if(type==='pdc_received'){const exists=await db.query('SELECT id FROM pdc_register WHERE bank=$1 AND check_no=$2',[String(b.bank||''),String(b.check_no||'')]);if(exists.rows.length)return res.status(409).json({error:'This bank and check number already exist in the PDC register.'});}
-  try{
-   const r=await db.query("INSERT INTO dcr_transactions(client_ref,dcr_id,transaction_date,transaction_type,amount,payor,bank,check_no,ar_no,reference_no,due_date,remarks,metadata,created_by,created_by_email) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15) RETURNING *",[ref,id,b.transaction_date,type,amount,String(b.payor||''),String(b.bank||''),String(b.check_no||''),String(b.ar_no||''),String(b.reference_no||''),b.due_date||null,String(b.remarks||''),JSON.stringify(b.metadata||{}),String(req.user.id),a.email]);
-   if(type==='pdc_received'){
-    await db.query("INSERT INTO pdc_register(bank,check_no,payor,amount,received_dcr_id,received_transaction_id,check_date,due_date,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Undeposited') ON CONFLICT(bank,check_no) DO NOTHING",[String(b.bank||''),String(b.check_no||''),String(b.payor||''),amount,id,r.rows[0].id,b.check_date||null,b.due_date||null]);
-   }
-   if(type==='pdc_deposit'){
-    await db.query("UPDATE pdc_register SET status='Deposited',updated_at=now() WHERE bank=$1 AND check_no=$2",[String(b.bank||''),String(b.check_no||'')]);
-   }
-   await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,after_data,actor_id,actor_email) VALUES('transaction',$1,'created',$2::jsonb,$3,$4)",[String(r.rows[0].id),JSON.stringify(r.rows[0]),String(req.user.id),a.email]);
-   await events.publish('dcr','changed',{kind:'transaction_created',id:r.rows[0].id,dcr_id:id});
-   return res.status(201).json({transaction:r.rows[0]});
+  try{const r=await db.query("INSERT INTO dcr_transactions(client_ref,dcr_id,transaction_date,transaction_type,amount,payor,bank,check_no,ar_no,reference_no,due_date,remarks,metadata,created_by,created_by_email) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb,$14,$15) RETURNING *",[ref,id,b.transaction_date,type,amount,String(b.payor||''),String(b.bank||''),String(b.check_no||''),String(b.ar_no||''),String(b.reference_no||''),b.due_date||null,String(b.remarks||''),JSON.stringify(b.metadata||{}),String(req.user.id),a.email]);
+   if(type==='pdc_received')await db.query("INSERT INTO pdc_register(bank,check_no,payor,amount,received_dcr_id,received_transaction_id,check_date,due_date,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'Undeposited') ON CONFLICT(bank,check_no) DO NOTHING",[String(b.bank||''),String(b.check_no||''),String(b.payor||''),amount,id,r.rows[0].id,b.check_date||null,b.due_date||null]);
+   if(type==='pdc_deposit')await db.query("UPDATE pdc_register SET status='Deposited',updated_at=now() WHERE bank=$1 AND check_no=$2",[String(b.bank||''),String(b.check_no||'')]);
+   await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,after_data,actor_id,actor_email) VALUES('transaction',$1,'created',$2::jsonb,$3,$4)",[String(r.rows[0].id),JSON.stringify(r.rows[0]),String(req.user.id),a.email]);await events.publish('dcr','changed',{kind:'transaction_created',id:r.rows[0].id,dcr_id:id});return res.status(201).json({transaction:r.rows[0]});
   }catch(e){return res.status(409).json({error:'Could not save. Check for duplicate PDC bank/check number.'});}
  }
- const id=Number(req.body?.id);
- if(!['admin','accounting'].includes(a.role)) return res.status(403).json({error:'Only accounting or admin can void a transaction.'});
- const old=await db.query('SELECT * FROM dcr_transactions WHERE id=$1 AND voided_at IS NULL',[id]);
- if(!old.rows.length) return res.status(404).json({error:'Transaction not found.'});
- await db.query('UPDATE dcr_transactions SET voided_at=now(),voided_by=$1 WHERE id=$2',[String(req.user.id),id]);
- await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,before_data,after_data,actor_id,actor_email) VALUES('transaction',$1,'voided',$2::jsonb,$3::jsonb,$4,$5)",[String(id),JSON.stringify(old.rows[0]),JSON.stringify({reason:String(req.body?.remarks||'No reason supplied')}),String(req.user.id),a.email]);
- await events.publish('dcr','changed',{kind:'transaction_voided',id});
- res.json({ok:true});
+ if(a.role!=='admin')return res.status(403).json({error:'Only Admin can void a transaction.'});
+ const id=Number(req.body?.id),old=await db.query('SELECT * FROM dcr_transactions WHERE id=$1 AND voided_at IS NULL',[id]);if(!old.rows.length)return res.status(404).json({error:'Transaction not found.'});
+ await db.query('UPDATE dcr_transactions SET voided_at=now(),voided_by=$1 WHERE id=$2',[String(req.user.id),id]);await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,before_data,after_data,actor_id,actor_email) VALUES('transaction',$1,'voided',$2::jsonb,$3::jsonb,$4,$5)",[String(id),JSON.stringify(old.rows[0]),JSON.stringify({reason:String(req.body?.remarks||'No reason supplied')}),String(req.user.id),a.email]);await events.publish('dcr','changed',{kind:'transaction_voided',id});return res.json({ok:true});
 }
