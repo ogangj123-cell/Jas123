@@ -262,7 +262,7 @@ function txExcel(){
  const blob=new Blob([xml],{type:'application/vnd.ms-excel;charset=utf-8'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='LiteShipping_Transaction_Report_'+new Date().toISOString().slice(0,10)+'.xls';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
-async function arch(){CUR=arch;const{data}=await sb.from('dcr_records').select('*').order('date_covered',{ascending:false});window.A=data;out(`<h3>DCR History / Reports</h3><p>Search DCR No. / month (YYYY-MM) / year</p><input id=sq oninput=ar placeholder="Search DCR number or date"><button onclick="exportDcrHistoryExcel()">Export All DCR History (Excel)</button><div id=al></div>`);ar()}
+async function arch(){CUR=arch;const{data}=await sb.from('dcr_records').select('*').order('date_covered',{ascending:false});window.A=data;out(`<h3>DCR History / Reports</h3><p>Search DCR No. / month (YYYY-MM) / year</p><input id=sq oninput=ar placeholder="Search DCR number or date"><button onclick="exportDcrHistoryExcel()">Export DCR History (Excel)</button><button onclick="exportAllReportsXlsx()">Download ALL Reports (.xlsx)</button><div id=al></div>`);ar()}
 function ar(){const q=($('#sq')?.value||'').toLowerCase();const rows=A.filter(x=>!q||(x.dcr_no+x.date_covered).toLowerCase().includes(q));al.innerHTML=`<table><tr><th>DCR No.<th>Date<th>Beginning<th>Collection<th>Deposit<th>Ending<th>PDC at closing<th>Status<th>Reports</tr>`+rows.map(x=>`<tr><td>${ES(x.dcr_no)}<td>${ES(x.date_covered)}<td>${P(x.beginning_balance)}<td>${x.total_collection==null?'—':P(x.total_collection)}<td>${x.total_deposit==null?'—':P(x.total_deposit)}<td>${x.ending_balance==null?'—':P(x.ending_balance)}<td>${x.pdc_balance_at_closing==null?'—':P(x.pdc_balance_at_closing)}<td>${ES(x.status)}<td><button onclick="edit('${x.id}')">Open</button><button onclick="exportDcrExcel('${x.id}')">Export Excel</button>${ROLE=='admin'?`<button class=dl onclick="delDcr('${x.id}')">Delete</button>`:''}</tr>`).join('')+'</table>'}
 function dcrXlsDownload(filename,sheets){
  const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -294,5 +294,68 @@ function exportDcrHistoryExcel(){
  const keys=['dcr_no','date_covered','status','beginning_balance','prev_day_collection','total_collection','total_deposit','ending_balance','pdc_balance_at_closing','pdc_tieout_diff','prepared_by','checked_by','verified_by','approved_by'];
  dcrXlsDownload('LiteShipping_DCR_History_'+today()+'.xls',[{name:'DCR History',rows:[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — HISTORY'],headers,...rows.map(x=>keys.map(k=>x[k]??''))]}])
 }
+function exportAllReportsXlsx(){
+ if(!window.XLSX){alert('The Excel workbook library is still loading. Please refresh and try again.');return}
+ const wb=XLSX.utils.book_new(),navy='00145F',yellow='FFCB00',white='FFFFFF',blue='E4EAF8',border='D5DBE8',usedNames=new Set();
+ const moneyFmt='"₱"#,##0.00;[Red]("₱"#,##0.00);-';
+ function addSheet(name,rows,widths){
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=(widths||[]).map(w=>({wch:w}));
+  const range=XLSX.utils.decode_range(ws['!ref']||'A1:A1');
+  for(let R=range.s.r;R<=range.e.r;R++)for(let C=range.s.c;C<=range.e.c;C++){
+   const ref=XLSX.utils.encode_cell({r:R,c:C});if(!ws[ref])continue;
+   ws[ref].s={font:{name:'Arial',sz:10,color:{rgb:'1B2440'}},alignment:{vertical:'center',wrapText:true},border:{top:{style:'thin',color:{rgb:border}},bottom:{style:'thin',color:{rgb:border}},left:{style:'thin',color:{rgb:border}},right:{style:'thin',color:{rgb:border}}}};
+   if(R===0||R===1){ws[ref].s={font:{name:'Arial',sz:R===0?14:12,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{vertical:'center',horizontal:'left'}}}
+   else if(R===2){ws[ref].s={font:{name:'Arial',sz:10,bold:true,color:{rgb:navy}},fill:{fgColor:{rgb:yellow}},alignment:{vertical:'center',wrapText:true}}}
+   else if(R%2===0){ws[ref].s.fill={fgColor:{rgb:'F7F9FD'}}}
+   if(typeof ws[ref].v==='number'&&/(Amount|Balance|Collection|Deposit|Cash|Check|Difference|Total|Denomination Value)/i.test(String(rows[2]?.[C]||'')))ws[ref].z=moneyFmt;
+  }
+  ws['!freeze']={xSplit:0,ySplit:3};
+  if(range.e.r>=2)ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:2,c:0},e:range.e})};
+  ws['!pageSetup']={orientation:range.e.c>6?'landscape':'portrait',paperSize:9,fitToWidth:1,fitToHeight:0};
+  ws['!margins']={left:0.25,right:0.25,top:0.5,bottom:0.5,header:0.2,footer:0.2};
+  let sheetName=name.slice(0,31),base=sheetName,n=2;while(usedNames.has(sheetName)){sheetName=(base.slice(0,27)+' '+n++).slice(0,31)}usedNames.add(sheetName);XLSX.utils.book_append_sheet(wb,ws,sheetName);
+  return ws;
+ }
+ function titleRows(title,subtitle,headers,records,keys){return [['LITE SHIPPING CORPORATION'],[title+'  |  '+subtitle],headers,...records.map(o=>keys.map(k=>o[k]??''))]}
+ const hist=(T('dcr_records')||[]).slice().sort((a,b)=>(a.date_covered||'').localeCompare(b.date_covered||''));
+ const hkeys=['dcr_no','date_covered','status','beginning_balance','prev_day_collection','total_collection','total_deposit','ending_balance','pdc_balance_at_closing','pdc_tieout_diff','prepared_by','checked_by','verified_by','approved_by'];
+ addSheet('DCR History',titleRows('DAILY COLLECTION REPORT — HISTORY','All DCR records',['DCR No.','Date Covered','Status','Beginning Balance','Previous Day Collection','Total Collection','Total Deposit','Ending Balance','PDC Balance at Closing','PDC Tie-out Difference','Prepared By','Checked By','Verified By','Approved By'],hist,hkeys),[18,14,12,18,20,18,18,18,22,22,24,20,20,20]);
+ const tx=txBuildRows();
+ const tkeys=['dcr_no','dcr_date','date','type','reference','bank','payor','teller','cash','check','amount','remarks'];
+ const tws=addSheet('Transaction Reports',titleRows('TRANSACTION REPORTS','All transactions · PDC detail rows are traceability only and excluded from report total',['DCR No.','DCR Date','Transaction Date','Transaction Type','JE / Check / Deposit Ref.','Bank / Account','Payor / Payee','Teller','Cash','Check','Amount','Remarks'],tx,tkeys),[18,14,16,24,24,22,26,20,16,16,16,36]);
+ const txTotal=tx.filter(x=>!x.detail).reduce((s,x)=>s+Number(x.amount||0),0);
+ const txEnd=XLSX.utils.decode_range(tws['!ref']).e.r+1;
+ XLSX.utils.sheet_add_aoa(tws,[['Report Total (excluding PDC detail rows)',txTotal]],{origin:'A'+(txEnd+1)});
+ const pdc=(T('pdc_register')||[]).slice().sort((a,b)=>(a.reg_date||'').localeCompare(b.reg_date||''));
+ addSheet('Live PDC Register',titleRows('LIVE PDC REGISTER','All registered checks at export time',['Date','Bank','Check No.','Amount','AR No.','Account Name','Status','Date Deposited','Due Date','Remarks'],pdc,['reg_date','bank','check_no','amount','ar_no','account_name','status','date_deposited','due_date','remarks']),[14,16,20,16,18,28,16,16,16,36]);
+ hist.forEach((d,i)=>{
+  const pick=k=>(T(k)||[]).filter(x=>x.dcr_id===d.id);
+  const collections=pick('dcr_collections'),pdcRows=pick('dcr_pdc_entries'),checks=pick('dcr_checks'),deposits=pick('dcr_deposits'),counts=pick('cash_counts');
+  const safe=(d.dcr_no||('DCR '+(i+1))).replace(/[^A-Za-z0-9_-]/g,' ').trim().slice(0,18);
+  const summary=[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — '+(d.dcr_no||'DCR')],['DCR No.',d.dcr_no,'Date Covered',d.date_covered],['Status',d.status,'Department',d.department],['Prepared By',d.prepared_by],['Beginning Balance',Number(d.beginning_balance||0)],['Previous Day Collection',Number(d.prev_day_collection||0)],['Cash Collection',collections.reduce((s,x)=>s+Number(x.cash||0),0)],['Check Collection (incl. PDC)',collections.reduce((s,x)=>s+Number(x.chk||0),0)],['Check Payments / F1',Number(d.check_payments||0)],['Check Encashment / F2',Number(d.check_encashment||0)],['Total Collection',Number(d.total_collection||0)],['Total Deposit',Number(d.total_deposit||0)],['Ending Balance',Number(d.ending_balance||0)],['PDC Balance at Closing',Number(d.pdc_balance_at_closing||0)],['PDC Tie-out Difference',Number(d.pdc_tieout_diff||0)],['Checked By',d.checked_by],['Verified By',d.verified_by],['Approved By',d.approved_by]];
+  const ws=addSheet(('DCR '+safe).slice(0,31),summary,[30,24,24,24,24,20]);
+  const sections=[
+   ['A. Recent Day Collection',['JE No.','Payor','Cash','Check','Remarks'],collections,['je_no','payor','cash','chk','remarks']],
+   ['B. Post-Dated Checks Received',['Check Date','Bank','Check No.','Amount','Payor','Teller'],pdcRows,['check_date','bank','check_no','amount','payor','teller']],
+   ['F1. Checks Collection',['Check Date','Check No.','Bank','Shipper / Payor','Amount','Remarks'],checks.filter(x=>x.kind==='collection'),['check_date','check_no','bank','payor','amount','remarks']],
+   ['F2. Encashment of Checks',['Check Date','Check No.','Bank','Payee / Encashed By','Amount','Remarks'],checks.filter(x=>x.kind==='encashment'),['check_date','check_no','bank','payor','amount','remarks']],
+   ['D. Deposits Made Today',['Type','Bank / Account','Amount','Deposit Slip / JE No.','Remarks'],deposits,['kind','bank_account','amount','ref_no','remarks']],
+   ['C. Cash Count',['Denomination','Pieces','Amount'],counts.map(x=>Object.assign({},x,{amount:Number(x.denom||0)*Number(x.pieces||0)})),['denom','pieces','amount']]
+  ];
+  let row=summary.length+2;
+  sections.forEach(sec=>{
+   XLSX.utils.sheet_add_aoa(ws,[[sec[0]],[...sec[1]],...sec[2].map(o=>sec[3].map(k=>o[k]??''))],{origin:'A'+row});
+   const end=row+1;
+   for(let C=0;C<sec[1].length;C++){
+    const cell=ws[XLSX.utils.encode_cell({r:end-1,c:C})];if(cell)cell.s={font:{name:'Arial',sz:10,bold:true,color:{rgb:white}},fill:{fgColor:{rgb:navy}},alignment:{wrapText:true}};
+   }
+   row+=sec[2].length+4;
+  });
+ });
+ const date=new Date().toISOString().slice(0,10);
+ XLSX.writeFile(wb,'LiteShipping_All_Reports_'+date+'.xlsx',{bookType:'xlsx',compression:true});
+}
+
 async function csv(w){const{data:all}=await sb.from(w=='pdc'?'pdc_register':'dcr_records').select('*').limit(5000),vis=w=='pdc'&&$('#pt')?new Set([...document.querySelectorAll('#pt tr[data-id]')].filter(r=>r.style.display!='none').map(r=>r.dataset.id)):null,data=vis?all.filter(x=>vis.has(x.id)):all,h=Object.keys(data[0]||{}),s=[h.join(','),...data.map(o=>h.map(k=>JSON.stringify(o[k]??'')).join(','))].join('\n');dl(w+'_'+today()+'.csv',s,'text/csv')}
 init()
