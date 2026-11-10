@@ -1,0 +1,47 @@
+import { db, events } from 'hatchable';
+export const access='user';
+export const methods=['POST'];
+async function staff(u){const r=await db.query('SELECT role,active,email FROM app_staff WHERE user_id=$1',[String(u.id)]);return r.rows[0]||null;}
+export default async function(req,res){
+ const a=await staff(req.user);
+ if(!a||!a.active||!['admin','accounting'].includes(a.role)) return res.status(403).json({error:'Only approved accounting staff or administrators can import legacy DCR data.'});
+ const b=req.body||{}, type=String(b.type||''), rows=Array.isArray(b.records)?b.records:[];
+ if(!['pdc','dcr','collections','pdc_entries','deposits','cash_counts'].includes(type)) return res.status(400).json({error:'Unknown import section.'});
+ try{
+  let count=0, dcrId=null;
+  if(type==='dcr'){
+   const x=rows[0]; if(!x) return res.status(400).json({error:'DCR record missing.'});
+   const r=await db.query("INSERT INTO dcrs(legacy_id,dcr_no,date_covered,prepared_by,department,status,beginning_balance,prev_day_collection,coins,coins_retained,check_encashment,check_payments,pdc_balance_at_closing,pdc_tieout_per_dcr,pdc_tieout_diff,closing_balance,total_collection,total_deposit,created_by,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$19) ON CONFLICT(legacy_id) DO UPDATE SET dcr_no=EXCLUDED.dcr_no,date_covered=EXCLUDED.date_covered,prepared_by=EXCLUDED.prepared_by,department=EXCLUDED.department,status=EXCLUDED.status,beginning_balance=EXCLUDED.beginning_balance,prev_day_collection=EXCLUDED.prev_day_collection,coins=EXCLUDED.coins,coins_retained=EXCLUDED.coins_retained,check_encashment=EXCLUDED.check_encashment,check_payments=EXCLUDED.check_payments,pdc_balance_at_closing=EXCLUDED.pdc_balance_at_closing,pdc_tieout_per_dcr=EXCLUDED.pdc_tieout_per_dcr,pdc_tieout_diff=EXCLUDED.pdc_tieout_diff,closing_balance=EXCLUDED.closing_balance,total_collection=EXCLUDED.total_collection,total_deposit=EXCLUDED.total_deposit RETURNING id",[String(x.id),String(x.dcr_no),x.date_covered,String(x.prepared_by||''),String(x.department||''),String(x.status||'open'),Number(x.beginning_balance||0),Number(x.prev_day_collection||0),Number(x.coins||0),Number(x.coins_retained||0),Number(x.check_encashment||0),Number(x.check_payments||0),x.pdc_balance_at_closing??null,x.pdc_tieout_per_dcr??null,x.pdc_tieout_diff??null,x.ending_balance??null,x.total_collection??null,x.total_deposit??null,String(req.user.id)]);
+   dcrId=r.rows[0].id; count=1;
+  } else if(type==='pdc'){
+   for(const x of rows){
+    const r=await db.query("INSERT INTO pdc_register(legacy_id,bank,check_no,payor,amount,check_date,due_date,status,reg_date,ar_no,date_deposited,remarks) VALUES($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10) ON CONFLICT(legacy_id) DO NOTHING",[String(x.id),String(x.bank||''),String(x.check_no||''),String(x.account_name||''),Number(x.amount||0),String(x.status||'Undeposited'),x.reg_date||null,String(x.ar_no||''),x.date_deposited||null,String(x.remarks||'')]);
+    count+=r.rowCount||0;
+   }
+  } else {
+   const d=await db.query('SELECT id FROM dcrs WHERE legacy_id=$1',[String(b.dcr_legacy_id||'')]);
+   if(!d.rows.length) return res.status(400).json({error:'Import the DCR header before its detail records.'});
+   dcrId=d.rows[0].id;
+   for(const x of rows){
+    if(type==='collections'){
+     await db.query("INSERT INTO dcr_collections(legacy_id,dcr_id,je_no,payor,cash,chk,remarks) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(legacy_id) DO NOTHING",[String(x.id),dcrId,x.je_no||null,String(x.payor||''),Number(x.cash||0),Number(x.chk||0),String(x.remarks||'')]);
+     for(const [suffix,kind,amt] of [['cash','cash_remittance',Number(x.cash||0)],['check','check_remittance',Number(x.chk||0)]]){
+      if(amt>0) await db.query("INSERT INTO dcr_transactions(client_ref,dcr_id,transaction_date,transaction_type,amount,payor,ar_no,remarks,metadata,created_by,created_by_email) SELECT $1,$2,date_covered,$3,$4,$5,$6,$7,$8::jsonb,$9,$10 FROM dcrs WHERE id=$2 ON CONFLICT(client_ref) DO NOTHING",['legacy:'+x.id+':'+suffix,dcrId,kind,amt,String(x.payor||''),String(x.je_no||''),String(x.remarks||''),JSON.stringify({legacy_source:'uploaded DCR HTML',legacy_row_id:x.id}),String(req.user.id),a.email]);
+     }
+    } else if(type==='pdc_entries'){
+     await db.query("INSERT INTO dcr_pdc_entries(legacy_id,dcr_id,check_date,bank,check_no,amount,payor,teller) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(legacy_id) DO NOTHING",[String(x.id),dcrId,x.check_date||null,String(x.bank||''),String(x.check_no||''),Number(x.amount||0),String(x.payor||''),String(x.teller||'')]);
+     await db.query("INSERT INTO dcr_transactions(client_ref,dcr_id,transaction_date,transaction_type,amount,payor,bank,check_no,due_date,metadata,created_by,created_by_email) SELECT $1,$2,date_covered,'pdc_received',$3,$4,$5,$6,$7,$8::jsonb,$9,$10 FROM dcrs WHERE id=$2 ON CONFLICT(client_ref) DO NOTHING",['legacy:'+x.id+':pdc',dcrId,Number(x.amount||0),String(x.payor||''),String(x.bank||''),String(x.check_no||''),x.check_date||null,JSON.stringify({legacy_source:'uploaded DCR HTML',teller:x.teller||''}),String(req.user.id),a.email]);
+    } else if(type==='deposits'){
+     await db.query("INSERT INTO dcr_deposits(legacy_id,dcr_id,kind,bank_account,amount,ref_no,remarks) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(legacy_id) DO NOTHING",[String(x.id),dcrId,String(x.kind||''),String(x.bank_account||''),Number(x.amount||0),String(x.ref_no||''),String(x.remarks||'')]);
+     await db.query("INSERT INTO dcr_transactions(client_ref,dcr_id,transaction_date,transaction_type,amount,bank,reference_no,remarks,metadata,created_by,created_by_email) SELECT $1,$2,date_covered,$3,$4,$5,$6,$7,$8::jsonb,$9,$10 FROM dcrs WHERE id=$2 ON CONFLICT(client_ref) DO NOTHING",['legacy:'+x.id+':deposit',dcrId,x.kind==='cash'?'cash_deposit':'pdc_deposit',Number(x.amount||0),String(x.bank_account||''),String(x.ref_no||''),String(x.remarks||''),JSON.stringify({legacy_source:'uploaded DCR HTML',deposit_kind:x.kind||''}),String(req.user.id),a.email]);
+    } else if(type==='cash_counts'){
+     await db.query("INSERT INTO dcr_cash_counts(legacy_id,dcr_id,denom,pieces) VALUES($1,$2,$3,$4) ON CONFLICT(legacy_id) DO NOTHING",[String(x.dcr_id)+':'+String(x.denom),dcrId,Number(x.denom||0),Number(x.pieces||0)]);
+    }
+    count++;
+   }
+  }
+  await db.query("INSERT INTO dcr_import_batches(source_key,counts) VALUES($1,$2::jsonb) ON CONFLICT(source_key) DO UPDATE SET imported_at=now(),counts=EXCLUDED.counts",[String(b.source_key||'legacy-html-import'),JSON.stringify({type,count})]);
+  await events.publish('dcr','changed',{kind:'legacy_import',type,count});
+  return res.json({ok:true,type,imported:count,dcr_id:dcrId});
+ }catch(e){return res.status(500).json({error:'Import failed: '+String(e.message||e)});}
+}

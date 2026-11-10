@@ -1,0 +1,2 @@
+CREATE TABLE IF NOT EXISTS pdc_status_history (id bigserial PRIMARY KEY, pdc_id bigint NOT NULL REFERENCES pdc_register(id), old_status text NOT NULL, new_status text NOT NULL, remarks text NOT NULL DEFAULT '', changed_by text NOT NULL, changed_by_email text NOT NULL DEFAULT '', changed_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_pdc_history ON pdc_status_history(pdc_id,changed_at DESC);
