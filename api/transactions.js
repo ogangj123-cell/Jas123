@@ -8,7 +8,7 @@ export default async function(req,res){
  if(!a||!a.active||a.role==='pending') return res.status(403).json({error:'Account pending administrator approval.'});
  if(req.method==='GET'){
   const q=String(req.query?.q||'').trim(), type=String(req.query?.type||'').trim(), from=String(req.query?.from||''), to=String(req.query?.to||'');
-  const r=await db.query("SELECT t.*,d.dcr_no,d.date_covered FROM dcr_transactions t JOIN dcrs d ON d.id=t.dcr_id WHERE t.voided_at IS NULL AND ($1='' OR d.dcr_no ILIKE '%'||$1||'%' OR t.payor ILIKE '%'||$1||'%' OR t.check_no ILIKE '%'||$1||'%' OR t.ar_no ILIKE '%'||$1||'%' OR t.reference_no ILIKE '%'||$1||'%') AND ($2='' OR t.transaction_type=$2) AND ($3='' OR t.transaction_date >= $3::date) AND ($4='' OR t.transaction_date <= $4::date) ORDER BY t.transaction_date DESC,t.id DESC LIMIT 500",[q,type,from,to]);
+  const r=await db.query("SELECT t.*,d.dcr_no,d.date_covered FROM dcr_transactions t JOIN dcrs d ON d.id=t.dcr_id WHERE t.voided_at IS NULL AND ($1='' OR d.dcr_no ILIKE '%'||$1||'%' OR t.payor ILIKE '%'||$1||'%' OR t.check_no ILIKE '%'||$1||'%' OR t.ar_no ILIKE '%'||$1||'%' OR t.reference_no ILIKE '%'||$1||'%') AND ($2='' OR t.transaction_type=$2) AND t.transaction_date >= COALESCE(NULLIF($3,'')::date,'0001-01-01'::date) AND t.transaction_date <= COALESCE(NULLIF($4,'')::date,'9999-12-31'::date) ORDER BY t.transaction_date DESC,t.id DESC LIMIT 500",[q,type,from,to]);
   return res.json({transactions:r.rows});
  }
  if(req.method==='POST'){
