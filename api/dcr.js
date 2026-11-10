@@ -18,10 +18,10 @@ export default async function(req,res){
  }
  if(req.method==='PUT'){
   if(!['admin','cashier'].includes(a.role))return res.status(403).json({error:'Accounting is view-only. Only Cashier or Admin can close a DCR.'});
-  const id=Number(req.body?.id),old=await db.query('SELECT * FROM dcrs WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'DCR not found.'});if(old.rows[0].status==='closed')return res.status(409).json({error:'This DCR is already closed. Its closing snapshot is locked.'});
+  const id=Number(req.body?.id),old=await db.query('SELECT * FROM dcrs WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'DCR not found.'});if(old.rows[0].status==='closed'&&a.role!=='admin')return res.status(409).json({error:'This DCR is closed. Only Admin can make a correction.'});
   const closing=Number(req.body?.closing_balance);if(!Number.isFinite(closing)||closing<0)return res.status(400).json({error:'Enter the verified closing balance before closing this DCR.'});
   const pdc=await db.query("SELECT COALESCE(sum(amount),0) AS total FROM pdc_register WHERE status='Undeposited'"),tieout=Number(req.body?.tieout??0);if(!Number.isFinite(tieout))return res.status(400).json({error:'Enter a valid tie-out amount.'});
-  const r=await db.query("UPDATE dcrs SET status='closed',closing_balance=$1,pdc_balance_at_closing=$2,tieout_at_closing=$3,closed_at=now(),closed_by=$4,updated_at=now(),updated_by=$4 WHERE id=$5 AND status='open' RETURNING *",[closing,Number(pdc.rows[0].total),tieout,String(req.user.id),id]);
+  const r=await db.query("UPDATE dcrs SET status='closed',closing_balance=$1,pdc_balance_at_closing=$2,tieout_at_closing=$3,closed_at=now(),closed_by=$4,updated_at=now(),updated_by=$4 WHERE id=$5 AND (status='open' OR $6='admin') RETURNING *",[closing,Number(pdc.rows[0].total),tieout,String(req.user.id),id,a.role]);
   await db.query("INSERT INTO audit_trail(entity_type,entity_id,action,before_data,after_data,actor_id,actor_email) VALUES('dcr',$1,'closed',$2::jsonb,$3::jsonb,$4,$5)",[String(id),JSON.stringify(old.rows[0]),JSON.stringify(r.rows[0]),String(req.user.id),a.email]);
   await events.publish('dcr','changed',{kind:'dcr_closed',id});return res.json({dcr:r.rows[0]});
  }

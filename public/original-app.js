@@ -157,7 +157,26 @@ ${secF(ck,d)}
 ${secP(rg,r,t,d)}
 <h3>H. Collection Summary, Cash Accountability & PDC Aging</h3><div id=vH>${blkH(T0)}</div>${aging(rg,r.date_covered)}
 <h3>Certification</h3><p>I certify that this report is a true and correct statement of the collections received and the deposits made for the date covered, supported by Official Receipts / Acknowledgment Receipts and bank deposit slips.</p><div class=sg><div>${tf('pb',170)}<br>Prepared by (Cashier / Teller)</div><div>${tf('cby',170)}<br>Checked by (Accounting)</div><div>${tf('rcb',170)}<br>Verified by (Treasury)</div><div>${tf('apb',170)}<br>Approved by</div></div>
-<div>${d?`<button onclick=reopen()>Reopen / Correct…</button>`:cl?`<button onclick=save()>Save correction (Admin)</button>`:`<button onclick=save()>Save</button><button onclick=closeD()>CLOSE / FINALIZE DCR</button><button onclick=reapply()>Re-apply previous ending balance</button>`}<button onclick=print()>Print</button>${ROLE=='admin'?`<button class=dl onclick="delDcr('${r.id}')">Delete DCR</button>`:''}</div>`);ckTot();live()}
+<div>${d?`<button onclick=reopen()>Reopen / Correct…</button>`:cl?`<button onclick=save()>Save correction (Admin)</button>`:`<button onclick=save()>Save</button><button onclick=closeD()>CLOSE / FINALIZE DCR</button><button onclick=reapply()>Re-apply previous ending balance</button>`}<button onclick=print()>Print</button>${ROLE=='admin'?`<button onclick="exportDcrPdf()">Export PDF / Soft Copy</button><button class=dl onclick="delDcr('${r.id}')">Delete DCR</button>`:''}</div>`);ckTot();live()}
+function exportDcrPdf(){
+ if(ROLE!=='admin')return alert('Administrator access required.');
+ const d=D||{},oldTitle=document.title,added=[];
+ const safe=String(d.dcr_no||'DCR').replace(/[^A-Za-z0-9_-]/g,'_');
+ document.querySelectorAll('main input,main select,main textarea').forEach(el=>{
+  if(['button','submit','reset','file','hidden'].includes((el.type||'').toLowerCase()))return;
+  let value=el.value??'';
+  if(el.tagName==='SELECT')value=el.selectedOptions?.[0]?.textContent||value;
+  if(el.type==='checkbox')value=el.checked?'Yes':'No';
+  if(el.type==='radio'&&!el.checked)value='';
+  const span=document.createElement('span');span.className='pv';span.textContent=value;
+  el.insertAdjacentElement('afterend',span);added.push(span);
+ });
+ document.title='DCR_'+safe+'_'+String(d.date_covered||'').replace(/[^0-9-]/g,'');
+ const cleanup=()=>{added.forEach(x=>x.remove());document.title=oldTitle;window.removeEventListener('afterprint',cleanup)};
+ window.addEventListener('afterprint',cleanup);
+ window.print();
+ setTimeout(cleanup,60000);
+}
 function secP(rg,r,t,d){const dt=r.date_covered,dep=x=>x.status=='Deposited'&&x.date_deposited==dt,L=srt(rg.filter(x=>(x.status=='Undeposited'&&x.reg_date<=dt)||dep(x)),'check_no'),fut=rg.filter(x=>x.status=='Undeposited'&&x.reg_date>dt),sel=L.filter(dep),pl=l=>l.length+(l.length==1?' check':' checks');
 return`<h3>G. Post-Dated Checks Due for Deposit on ${ES(dt)} — tick the checks you are depositing today</h3><div class=cards><div class=card>Due / past due<b>${P(S(L,x=>x.amount))}</b><small>${pl(L)}</small></div><div class=card>Selected for deposit (fills Section D)<b id=g_s>${P(S(sel,x=>x.amount))}</b><small id=g_n>${pl(sel)}</small></div><div class=card>Not yet due<b>${P(S(fut,x=>x.amount))}</b><small>${pl(fut)}</small></div></div><table id=gg><tr><th>Deposit?<th>Check Date<th>Bank<th>Check No.<th>Account Name<th>AR No.<th>Amount<th>Days past due<th>Status</tr>${L.length?L.map(x=>`<tr class="${x.reg_date<dt?'od':''}"><td><input type=checkbox class=pk data-id="${x.id}" data-a="${x.amount}" data-was="${dep(x)?1:0}" ${dep(x)?'checked':''} ${d?'disabled':''} onchange="selPdc()" style="width:auto"><td>${ES(x.reg_date)}<td>${ES(x.bank)}<td>${ES(x.check_no)}<td>${ES(x.account_name)}<td>${ES(x.ar_no)}<td>${P(x.amount)}<td>${Math.max(0,Math.round((new Date(dt)-new Date(x.reg_date))/864e5))}<td>${ES(x.status)}`).join(''):'<tr><td colspan=9>No post-dated checks are due on or before this date.'}</table>`}
 
