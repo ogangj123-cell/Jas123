@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10263f"><meta name="description" content="Shared Lite Shipping DCR and transaction monitor">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="stylesheet" href="/theme.css">
+<title>Lite Shipping | DCR Monitor</title>
+</head>
+<body>
+<div id="loginView" class="login-wrap" hidden>
+ <section class="login-card"><div class="brand-mark">LS</div><p class="eyebrow">LITE SHIPPING CORPORATION</p><h1>DCR Monitor</h1><p class="muted">Sign in with your staff email. We'll send you a one-time code.</p>
+ <form id="loginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="username webauthn" required placeholder="name@company.com"></label><div id="codeRow" hidden><label>6-digit code<input id="loginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label></div><button class="primary" id="loginSubmit">Continue</button></form><p class="hint" id="loginMessage" aria-live="polite"></p></section>
+</div>
+<div id="appView" hidden>
+<header class="topbar"><div class="brand"><div class="brand-mark small">LS</div><div><strong>Lite Shipping</strong><span>DCR Monitor</span></div></div><div class="top-actions"><span id="connection" class="status-pill">Checking connection…</span><button id="installBtn" class="ghost" hidden>Install app</button><button id="notifyBtn" class="ghost">Enable alerts</button><button id="logoutBtn" class="ghost">Sign out</button></div></header>
+<main class="shell">
+ <section class="welcome"><div><p class="eyebrow">CASHIER OPERATIONS</p><h1>Daily Cashier Report</h1><p class="muted" id="staffLine">Shared workspace</p></div><div class="welcome-actions"><button id="refreshBtn" class="secondary">Refresh</button><button id="newDcrBtn" class="primary">+ New DCR</button></div></section>
+ <section class="stats" id="stats"><article><span>Open DCRs</span><strong id="openCount">—</strong></article><article><span>Undeposited PDCs</span><strong id="pdcCount">—</strong></article><article><span>PDC amount on hand</span><strong id="pdcAmount">—</strong></article><article><span>Pending offline entries</span><strong id="queueCount">0</strong></article></section>
+ <nav class="tabs"><button class="tab active" data-tab="transactions">Transactions</button><button class="tab" data-tab="dcrs">DCR Register</button><button class="tab" data-tab="pdc">PDC Monitor</button><button class="tab" data-tab="staff" id="staffTab" hidden>Staff Access</button></nav>
+ <section id="transactionsPanel" class="panel">
+  <div class="panel-head"><div><h2>Transaction search</h2><p class="muted">Search every transaction and trace it to its DCR number.</p></div><button id="addTxBtn" class="primary">+ Add transaction</button></div>
+  <div class="filters"><label>Search<input id="filterQ" placeholder="DCR no., payor, check no., AR no."></label><label>Transaction type<select id="filterType"><option value="">All types</option><option value="cash_remittance">Cash remittance</option><option value="check_remittance">Check remittance</option><option value="check_payment">Check payment</option><option value="check_encashment">Check encashment</option><option value="pdc_received">PDC received</option><option value="pdc_deposit">PDC deposited</option><option value="cash_deposit">Cash deposit</option><option value="adjustment">Adjustment</option></select></label><label>From<input id="filterFrom" type="date"></label><label>To<input id="filterTo" type="date"></label><button id="filterBtn" class="secondary">Apply filters</button></div>
+  <div class="table-wrap"><table><thead><tr><th>Date</th><th>DCR No.</th><th>Type</th><th>Payor / Account</th><th>Bank</th><th>Check No.</th><th>AR / Reference</th><th>Due date</th><th class="right">Amount</th><th>Entered by</th></tr></thead><tbody id="txRows"><tr><td colspan="10" class="empty">Loading transactions…</td></tr></tbody></table></div>
+ </section>
+ <section id="dcrsPanel" class="panel" hidden><div class="panel-head"><div><h2>DCR register</h2><p class="muted">Open DCRs and locked closing snapshots.</p></div></div><div class="table-wrap"><table><thead><tr><th>DCR No.</th><th>Date covered</th><th>Prepared by</th><th>Status</th><th class="right">Beginning balance</th><th class="right">Closing balance</th><th>Action</th></tr></thead><tbody id="dcrRows"></tbody></table></div></section>
+ <section id="pdcPanel" class="panel" hidden><div class="panel-head"><div><h2>Live PDC register</h2><p class="muted">Current register balance is separate from each DCR's saved closing snapshot.</p></div></div><div class="table-wrap"><table><thead><tr><th>Bank</th><th>Check No.</th><th>Payor</th><th>Received DCR</th><th>Check date</th><th>Due date</th><th>Status</th><th class="right">Amount</th></tr></thead><tbody id="pdcRows"></tbody></table></div></section>
+ <section id="staffPanel" class="panel" hidden><div class="panel-head"><div><h2>Staff access</h2><p class="muted">Approve accounts and assign cashier, accounting, or administrator permissions.</p></div></div><div class="table-wrap"><table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Active</th><th>Save</th></tr></thead><tbody id="staffRows"></tbody></table></div></section>
+ <section class="sync-note"><strong>Offline mode:</strong> Last synced records remain available on this device. New transaction entries are queued locally and sync when you reconnect. Avoid clearing browser data until pending entries have synced.</section>
+</main>
+</div>
+<div id="modal" class="modal" hidden><div class="modal-card"><div class="modal-head"><h2 id="modalTitle">New transaction</h2><button id="closeModal" class="icon-btn" aria-label="Close">×</button></div><form id="entryForm"><div id="entryFields" class="form-grid"></div><div class="modal-actions"><button type="button" id="cancelModal" class="secondary">Cancel</button><button class="primary" id="saveEntry">Save transaction</button></div></form></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script src="/__hatchable/events.js"></script><script src="/app.js" defer></script>
+</body></html>
