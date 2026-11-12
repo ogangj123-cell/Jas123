@@ -32,7 +32,11 @@ export default async function(req,res){
    for(const k of sections)next[k]=mergeRows(base[k],incoming[k],current[k]||[],'id');
   }catch(e){return res.status(409).json({error:e.message})}
   if(staff.role==='cashier'){
-   for(const k of ['pdc_status_history','dcr_log','audit_trail'])if(!same(next[k]||[],current[k]||[]))return res.status(403).json({error:'Cashier cannot edit audit history or administrative records.'});
+   // Cashiers may generate new audit/status entries through normal actions, but may never alter or remove an existing history row.
+   for(const k of ['pdc_status_history','dcr_log','audit_trail']){
+    const oldRows=current[k]||[],newRows=next[k]||[];
+    for(const row of oldRows){const updated=newRows.find(x=>String(x.id)===String(row.id));if(!updated||!same(row,updated))return res.status(403).json({error:'Cashier cannot modify or delete existing '+k+' records.'});}
+   }
    const oldDcr=current.dcr_records||[],newDcr=next.dcr_records||[];
    for(const d of oldDcr){const n=newDcr.find(x=>String(x.id)===String(d.id));if(!n)return res.status(403).json({error:'Cashier cannot delete DCR records.'});if(d.status==='closed'&&!same(d,n))return res.status(403).json({error:'Closed DCRs are locked and cannot be edited by Cashier.'});}
    for(const k of childSections){
