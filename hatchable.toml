@@ -1,3 +1,7 @@
 [auth]
 enabled = true
 providers = ["email"]
+
+[[cron]]
+path = "/api/jobs/auto-close-dcr"
+schedule = "0 16 * * *"
