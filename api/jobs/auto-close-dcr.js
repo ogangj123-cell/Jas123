@@ -35,7 +35,7 @@ export default async function(req, res) {
     const revision = Number(current.rows[0].revision);
     const state = current.rows[0].state || {};
     const records = Array.isArray(state.dcr_records) ? state.dcr_records : [];
-    const due = records.filter(d => d.status === 'open' && d.date_covered && d.date_covered < today);
+    const due = records.filter(d => ['open', 'reopened'].includes(d.status) && d.date_covered && d.date_covered < today);
     if (!due.length) return res.json({ ok: true, date_manila: today, closed_count: 0, message: 'No open DCRs from a previous date.' });
     const next = { ...state, dcr_records: [...records], dcr_log: [...(state.dcr_log || [])], audit_trail: [...(state.audit_trail || [])] };
     const closedAt = new Date().toISOString();
