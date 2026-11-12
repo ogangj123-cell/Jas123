@@ -299,8 +299,15 @@ function exportDcrHistoryExcel(){
  const keys=['dcr_no','date_covered','status','beginning_balance','prev_day_collection','total_collection','total_deposit','ending_balance','pdc_balance_at_closing','pdc_tieout_diff','prepared_by','checked_by','verified_by','approved_by'];
  dcrXlsDownload('LiteShipping_DCR_History_'+today()+'.xls',[{name:'DCR History',rows:[['LITE SHIPPING CORPORATION'],['DAILY COLLECTION REPORT — HISTORY'],headers,...rows.map(x=>keys.map(k=>x[k]??''))]}])
 }
-function exportAllReportsXlsx(){
- if(!window.XLSX){alert('The Excel workbook library is still loading. Please refresh and try again.');return}
+let XLSX_LOAD=null;
+function ensureXLSX(){
+ if(window.XLSX)return Promise.resolve();
+ if(XLSX_LOAD)return XLSX_LOAD;
+ XLSX_LOAD=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';s.onload=()=>window.XLSX?resolve():reject(new Error('Excel library did not initialize.'));s.onerror=()=>{XLSX_LOAD=null;reject(new Error('Could not load the Excel export library. Check your connection and try again.'))};document.head.appendChild(s)});
+ return XLSX_LOAD;
+}
+async function exportAllReportsXlsx(){
+ try{await ensureXLSX()}catch(e){alert(e.message);return}
  const wb=XLSX.utils.book_new(),navy='00145F',yellow='FFCB00',white='FFFFFF',pale='E4EAF8',border='D5DBE8',usedNames=new Set(),moneyFmt='"₱"#,##0.00;[Red]("₱"#,##0.00);-';
  const hist=(T('dcr_records')||[]).slice().sort((a,b)=>(a.date_covered||'').localeCompare(b.date_covered||'')),pdc=(T('pdc_register')||[]).slice().sort((a,b)=>(a.reg_date||'').localeCompare(b.reg_date||''));
  const todayISO=today(),days=(a,b)=>Math.round((new Date(b)-new Date(a))/864e5),sum=(a,k)=>a.reduce((s,x)=>s+Number(x[k]||0),0),round=x=>Math.round((Number(x)||0)*100)/100;
